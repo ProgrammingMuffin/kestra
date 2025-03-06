@@ -18,12 +18,15 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.common.collect.ImmutableList;
 import io.kestra.core.Helpers;
 import io.kestra.core.exceptions.InternalException;
 import io.kestra.core.junit.annotations.KestraTest;
+import io.kestra.core.models.flows.CreateIfNotExists;
 import io.kestra.core.models.flows.Flow;
 import io.kestra.core.models.flows.FlowWithSource;
 import io.kestra.core.models.flows.Type;
@@ -925,14 +928,36 @@ class FlowControllerTest {
         assertThat(body.get(0).getConstraints(), containsString("cron: must not be null"));
     }
 
+    @Test
+    void createIfNotExistsNamespacePositive() {
+        Flow flow = generateFlow("testnamespace", "a");
+        Flow result = parseFlow(client.toBlocking().retrieve(POST("/api/v1/flows", flow), String.class));
+        assertEquals("testnamespace", result.getNamespace());
+
+        Flow flow2 = generateFlowWithCreateIfNotExists(IdUtils.create(), "testNamespace2", CreateIfNotExists.builder().namespace(false).build());
+        HttpClientResponseException e = assertThrows(HttpClientResponseException.class, () -> {
+            parseFlow(client.toBlocking().retrieve(POST("/api/v1/flows", flow2), String.class));
+        });
+        assertTrue(e.getMessage().contains("Namespace does not exist"));
+    }
+
     private Flow generateFlow(String namespace, String inputName) {
         return generateFlow(IdUtils.create(), namespace, inputName);
+    }
+
+    private Flow generateFlowWithCreateIfNotExists(String friendlyId, String namespace, CreateIfNotExists createIfNotExists) {
+        return Flow.builder()
+        .id(friendlyId)
+        .namespace(namespace)
+        .createIfNotExists(createIfNotExists)
+        .build();
     }
 
     private Flow generateFlow(String friendlyId, String namespace, String inputName) {
         return Flow.builder()
             .id(friendlyId)
             .namespace(namespace)
+            .createIfNotExists(CreateIfNotExists.builder().namespace(true).build())
             .inputs(ImmutableList.of(StringInput.builder().type(Type.STRING).id(inputName).build()))
             .tasks(Collections.singletonList(generateTask("test", "test")))
             .build();
