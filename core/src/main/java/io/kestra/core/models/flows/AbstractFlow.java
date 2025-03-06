@@ -23,6 +23,9 @@ public abstract class AbstractFlow implements DeletedInterface, TenantInterface 
     String id;
 
     @NotNull
+    CreateIfNotExists createIfNotExists;
+
+    @NotNull
     @Pattern(regexp = "^[a-z0-9][a-z0-9._-]*")
     @Size(min = 1, max = 150)
     String namespace;

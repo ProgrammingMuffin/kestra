@@ -25,6 +25,7 @@ import io.kestra.core.repositories.FlowTopologyRepositoryInterface;
 import io.kestra.core.serializers.JacksonMapper;
 import io.kestra.core.serializers.YamlParser;
 import io.kestra.core.services.FlowService;
+import io.kestra.core.services.NamespaceService;
 import io.kestra.core.services.GraphService;
 import io.kestra.core.services.PluginDefaultService;
 import io.kestra.core.tenant.TenantService;
@@ -52,6 +53,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.inject.Inject;
+import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
@@ -88,6 +90,9 @@ public class FlowController {
 
     @Inject
     private FlowService flowService;
+
+    @Inject
+    private NamespaceService namespaceService;
 
     @Inject
     private YamlParser yamlParser;
@@ -288,7 +293,18 @@ public class FlowController {
         return HttpResponse.ok(doCreate(flow, flow.generateSource()).toFlow());
     }
 
-    protected FlowWithSource doCreate(Flow flow, String source) {
+    protected FlowWithSource doCreate(Flow flow, String source) throws ConstraintViolationException {
+        // check if namespace exists
+        Set<ConstraintViolation<?>> violations = new HashSet<>();
+        if (!flow.getCreateIfNotExists().getNamespace()) {
+            ConstraintViolation<?> violation = namespaceService.CheckNamespaceExists(flow.getTenantId(), source);
+            if (violation != null) {
+                violations.add(violation);
+            }
+        }
+        if (!violations.isEmpty()) {
+            throw new ConstraintViolationException(violations);
+        }
         return flowRepository.create(flow, source, pluginDefaultService.injectDefaults(flow.withSource(source)));
     }
 
